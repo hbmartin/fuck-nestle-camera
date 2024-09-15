@@ -2,29 +2,14 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { Button } from "@/components/ui/button"
-import { CameraIcon, RefreshCwIcon } from "lucide-react"
-import { createWorker } from 'tesseract.js'
-
-const readFromBlobOrFile = (blob) => (
-  new Promise((resolve, reject) => {
-    console.log("BLOB")
-    console.log(blob)
-    const fileReader = new FileReader();
-    fileReader.onload = () => {
-      resolve(fileReader.result);
-    };
-    fileReader.onerror = ({ target: { error: { code } } }) => {
-      reject(Error(`File could not be read! Code=${code}`));
-    };
-    fileReader.readAsArrayBuffer(blob);
-  })
-);
+import { RefreshCwIcon } from "lucide-react"
+import { createWorker, Rectangle } from 'tesseract.js'
 
 export function MobileCameraView() {
   const [isFrontCamera, setIsFrontCamera] = useState(true)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [boundingBoxes, setBoundingBoxes] = useState<Rectangle[]>([])
   const videoRef = useRef<HTMLVideoElement>(null)
-  const canvasRef = useRef<HTMLCanvasElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const workerRef = useRef<Tesseract.Worker | null>(null)
 
@@ -72,48 +57,17 @@ export function MobileCameraView() {
   }
 
   const processFrame = async () => {
-    console.log("starting processing");
-    console.log(canvasRef.current?.toDataURL())
-    if (isProcessing || !videoRef.current || !canvasRef.current || !workerRef.current) return
+    if (isProcessing || !videoRef.current || !workerRef.current) return
 
     setIsProcessing(true)
-
-    const video = videoRef.current
-    const canvas = canvasRef.current
-    const ctx = canvas.getContext('2d')
-
-    if (!ctx) return
-
-    canvas.width = video.videoWidth
-    canvas.height = video.videoHeight
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
-
-    console.log("starting recognize");
-    console.log(canvas)
-
-    canvas.toBlob(async (blob) => {
-      const data = await readFromBlobOrFile(blob);
-      console.log(data)
-    })
-
+    console.log("PROCESSING")
+    console.log(videoRef.current.poster)
     try {
-      const { data } = await workerRef.current.recognize(canvas).catch(error => console.error('Error in myFunction:', error));
-      console.log(data);
-
-      // Clear previous boxes
-      ctx.clearRect(0, 0, canvas.width, canvas.height)
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
-  
-      // Draw bounding boxes
-      ctx.strokeStyle = 'red'
-      ctx.lineWidth = 2
-      data.words.forEach(word => {
-        const { bbox } = word
-        ctx.strokeRect(bbox.x0, bbox.y0, bbox.x1 - bbox.x0, bbox.y1 - bbox.y0)
-      })
+      const { data } = await workerRef.current.recognize(videoRef.current)
+      console.log(data)
+      setBoundingBoxes(data.words.map(word => word.bbox))
     } catch (error) {
-      console.log("ERROR")
-      console.log(error)
+      console.error("Error processing frame:", error)
     }
 
     setIsProcessing(false)
@@ -133,10 +87,23 @@ export function MobileCameraView() {
           playsInline
           className="w-full h-full object-cover"
         />
-        <canvas
-          ref={canvasRef}
-          className="absolute top-0 left-0 w-full h-full"
-        />
+        <svg
+          className="absolute top-0 left-0 w-full h-full pointer-events-none"
+          style={{ filter: 'drop-shadow(0px 0px 2px rgba(0,0,0,0.5))' }}
+        >
+          {boundingBoxes.map((box, index) => (
+            <rect
+              key={index}
+              x={box.x0}
+              y={box.y0}
+              width={box.x1 - box.x0}
+              height={box.y1 - box.y0}
+              fill="none"
+              stroke="red"
+              strokeWidth="2"
+            />
+          ))}
+        </svg>
         <div className="absolute bottom-4 left-0 right-0 flex justify-center">
           <Button
             onClick={toggleCamera}
