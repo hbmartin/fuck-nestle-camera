@@ -5,6 +5,21 @@ import { Button } from "@/components/ui/button"
 import { CameraIcon, RefreshCwIcon } from "lucide-react"
 import { createWorker } from 'tesseract.js'
 
+const readFromBlobOrFile = (blob) => (
+  new Promise((resolve, reject) => {
+    console.log("BLOB")
+    console.log(blob)
+    const fileReader = new FileReader();
+    fileReader.onload = () => {
+      resolve(fileReader.result);
+    };
+    fileReader.onerror = ({ target: { error: { code } } }) => {
+      reject(Error(`File could not be read! Code=${code}`));
+    };
+    fileReader.readAsArrayBuffer(blob);
+  })
+);
+
 export function MobileCameraView() {
   const [isFrontCamera, setIsFrontCamera] = useState(true)
   const [isProcessing, setIsProcessing] = useState(false)
@@ -58,6 +73,7 @@ export function MobileCameraView() {
 
   const processFrame = async () => {
     console.log("starting processing");
+    console.log(canvasRef.current?.toDataURL())
     if (isProcessing || !videoRef.current || !canvasRef.current || !workerRef.current) return
 
     setIsProcessing(true)
@@ -73,20 +89,32 @@ export function MobileCameraView() {
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
 
     console.log("starting recognize");
-    const { data } = await workerRef.current.recognize(canvas);
-    console.log(data);
+    console.log(canvas)
 
-    // Clear previous boxes
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
-
-    // Draw bounding boxes
-    ctx.strokeStyle = 'red'
-    ctx.lineWidth = 2
-    data.words.forEach(word => {
-      const { bbox } = word
-      ctx.strokeRect(bbox.x0, bbox.y0, bbox.x1 - bbox.x0, bbox.y1 - bbox.y0)
+    canvas.toBlob(async (blob) => {
+      const data = await readFromBlobOrFile(blob);
+      console.log(data)
     })
+
+    try {
+      const { data } = await workerRef.current.recognize(canvas).catch(error => console.error('Error in myFunction:', error));
+      console.log(data);
+
+      // Clear previous boxes
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+  
+      // Draw bounding boxes
+      ctx.strokeStyle = 'red'
+      ctx.lineWidth = 2
+      data.words.forEach(word => {
+        const { bbox } = word
+        ctx.strokeRect(bbox.x0, bbox.y0, bbox.x1 - bbox.x0, bbox.y1 - bbox.y0)
+      })
+    } catch (error) {
+      console.log("ERROR")
+      console.log(error)
+    }
 
     setIsProcessing(false)
   }
