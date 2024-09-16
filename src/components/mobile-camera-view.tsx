@@ -1,24 +1,11 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */ 
+
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
 import { Button } from "@/components/ui/button"
-import { CameraIcon, RefreshCwIcon } from "lucide-react"
-import { createWorker } from 'tesseract.js'
-
-const readFromBlobOrFile = (blob) => (
-  new Promise((resolve, reject) => {
-    console.log("BLOB")
-    console.log(blob)
-    const fileReader = new FileReader();
-    fileReader.onload = () => {
-      resolve(fileReader.result);
-    };
-    fileReader.onerror = ({ target: { error: { code } } }) => {
-      reject(Error(`File could not be read! Code=${code}`));
-    };
-    fileReader.readAsArrayBuffer(blob);
-  })
-);
+import { RefreshCwIcon } from "lucide-react"
+import { OcrsModule } from '@/ocrs/ocrs_module'
 
 export function MobileCameraView() {
   const [isFrontCamera, setIsFrontCamera] = useState(true)
@@ -26,7 +13,7 @@ export function MobileCameraView() {
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
-  const workerRef = useRef<Tesseract.Worker | null>(null)
+  const workerRef = useRef<OcrsModule | null>(null)
 
   useEffect(() => {
     async function setupCamera() {
@@ -50,8 +37,7 @@ export function MobileCameraView() {
     }
 
     async function initTesseract() {
-      const worker = await createWorker('eng')
-      workerRef.current = worker
+      workerRef.current = OcrsModule.getInstance()
     }
 
     setupCamera()
@@ -60,9 +46,6 @@ export function MobileCameraView() {
     return () => {
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop())
-      }
-      if (workerRef.current) {
-        workerRef.current.terminate()
       }
     }
   }, [isFrontCamera])
@@ -73,7 +56,6 @@ export function MobileCameraView() {
 
   const processFrame = async () => {
     console.log("starting processing");
-    console.log(canvasRef.current?.toDataURL())
     if (isProcessing || !videoRef.current || !canvasRef.current || !workerRef.current) return
 
     setIsProcessing(true)
@@ -84,43 +66,46 @@ export function MobileCameraView() {
 
     if (!ctx) return
 
-    canvas.width = video.videoWidth
-    canvas.height = video.videoHeight
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
-
-    console.log("starting recognize");
-    console.log(canvas)
-
-    canvas.toBlob(async (blob) => {
-      const data = await readFromBlobOrFile(blob);
-      console.log(data)
-    })
-
-    try {
-      const { data } = await workerRef.current.recognize(canvas).catch(error => console.error('Error in myFunction:', error));
-      console.log(data);
-
-      // Clear previous boxes
-      ctx.clearRect(0, 0, canvas.width, canvas.height)
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
-  
-      // Draw bounding boxes
-      ctx.strokeStyle = 'red'
-      ctx.lineWidth = 2
-      data.words.forEach(word => {
-        const { bbox } = word
-        ctx.strokeRect(bbox.x0, bbox.y0, bbox.x1 - bbox.x0, bbox.y1 - bbox.y0)
-      })
-    } catch (error) {
-      console.log("ERROR")
-      console.log(error)
+    if (video.videoWidth > 1) {
+      canvas.width = video.videoWidth
     }
+    if (video.videoHeight > 1) {
+      canvas.height = video.videoHeight
+    }
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+    console.log("did draw video to canvas")
+    const imageData: ImageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+    const lines = workerRef.current.detectAndRecognizeText(imageData)
+    console.log(lines)
+
+
+    // console.log("starting recognize");
+
+    // try {
+    //   const { data } = await workerRef.current.recognize(canvas).catch(error => console.error('Error in myFunction:', error));
+    //   console.log(data);
+
+    //   // Clear previous boxes
+    //   ctx.clearRect(0, 0, canvas.width, canvas.height)
+    //   ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+  
+    //   // Draw bounding boxes
+    //   ctx.strokeStyle = 'red'
+    //   ctx.lineWidth = 2
+    //   data.words.forEach(word => {
+    //     const { bbox } = word
+    //     ctx.strokeRect(bbox.x0, bbox.y0, bbox.x1 - bbox.x0, bbox.y1 - bbox.y0)
+    //   })
+    // } catch (error) {
+    //   console.log("ERROR")
+    //   console.log(error)
+    // }
 
     setIsProcessing(false)
   }
 
   useEffect(() => {
-    const intervalId = setInterval(processFrame, 1000) // Process every second
+    const intervalId = setInterval(processFrame, 2000) // Process every 2 seconds
     return () => clearInterval(intervalId)
   }, [isProcessing])
 
