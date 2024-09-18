@@ -49,6 +49,7 @@ export function MobileCameraView() {
 
     setupCamera()
     workerRef.current = OcrsModule.getInstance()
+    setupFuzzy()
 
 
     return () => {
@@ -64,7 +65,10 @@ export function MobileCameraView() {
 
   const processFrame = async () => {
     console.log("starting processing");
-    if (!videoRef.current || !canvasRef.current || !workerRef.current || !fuzzyRef.current) return
+    if (!videoRef.current || !canvasRef.current || !workerRef.current) {
+      console.log(`videoRef: ${!videoRef.current}, canvasRef: ${!canvasRef.current}, workerRef: ${!workerRef.current}`)
+      return
+    }
 
     const fuzzy = fuzzyRef.current
     const video = videoRef.current
@@ -111,9 +115,11 @@ export function MobileCameraView() {
       for (const line of data["lines"]) {
         const text = line["text"]
         if (text.length > 4) {
-          const matches = fuzzy.search(text)
-          if (matches.length > 0) {
+          const matches = fuzzyRef.current?.search(text)
+          if (matches && matches.length > 0) {
             console.log(matches)
+          } else {
+            console.log(`matches: ${matches}`)
           }
         }
       }

@@ -4,6 +4,20 @@ import {
     default as initOcrLib,
   } from "./ocrs.js";
 
+export interface DetectAndRecognizeResult {
+  lines: Line[]
+}
+
+export interface Line {
+  text: string
+  words: Word[]
+}
+
+export interface Word {
+  text: string
+  rect: number[]
+}
+
 async function fetchAsBinary(path: string): Promise<Uint8Array> {
     const response = await fetch(path)
     if (!response.ok) {
@@ -57,7 +71,7 @@ export class OcrsModule {
         return OcrsModule.instance;
     }
 
-    detectAndRecognizeText(image: ImageData) {
+    detectAndRecognizeText(image: ImageData): DetectAndRecognizeResult | null {
         if (!OcrsModule.ocrEngine) {
             console.log("not yet init")
             return null
