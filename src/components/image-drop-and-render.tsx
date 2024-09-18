@@ -1,9 +1,9 @@
 "use client"
 
-import { useState, useRef, useCallback } from "react"
-import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
 import { OcrsModule } from "@/ocrs/ocrs_module"
+import { useCallback, useRef, useState } from "react"
 
 export default function ImageDropAndRender() {
   const [image, setImage] = useState<string | null>(null)
@@ -17,7 +17,7 @@ export default function ImageDropAndRender() {
       setIsDragging(false)
 
       const file = e.dataTransfer.files[0]
-      if (file && file.type.startsWith("image/")) {
+      if (file?.type.startsWith("image/")) {
         const reader = new FileReader()
         reader.onload = (event) => {
           const img = new Image()

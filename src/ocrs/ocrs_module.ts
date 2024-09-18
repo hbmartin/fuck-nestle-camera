@@ -1,12 +1,10 @@
-"use strict"
-
 import { OcrEngine, OcrEngineInit, default as initOcrLib } from "./ocrs.js"
 
 enum Status {
-  NotStartedIntitializing,
-  CurrentlyIntitializing,
-  Ready,
-  Running,
+  NotStartedIntitializing = 0,
+  CurrentlyIntitializing = 1,
+  Ready = 2,
+  Running = 3,
 }
 
 export interface DetectAndRecognizeResult {
@@ -29,7 +27,6 @@ async function fetchAsBinary(path: string): Promise<Uint8Array> {
     throw new Error(`HTTP error! status: ${response.status}`)
   }
   const data = await response.arrayBuffer()
-  console.log(data)
   return new Uint8Array(data)
 }
 
@@ -55,7 +52,8 @@ export class OcrsModule {
     ])
 
     console.log(`Loaded wasm ${wasmBinary.length}`)
-    const initOutput = await initOcrLib(wasmBinary)
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const _initOutput = await initOcrLib(wasmBinary)
 
     console.log(`Loaded detectionModel ${detectionModel.length}`)
     console.log(`Loaded recognitionModel ${recognitionModel.length}`)
@@ -80,7 +78,7 @@ export class OcrsModule {
       console.log("ocrEngine has not been initialized")
       return null
     }
-    if (OcrsModule.status != Status.Ready) {
+    if (OcrsModule.status !== Status.Ready) {
       console.log(`Detection request already running (${OcrsModule.status})`)
       return null
     }

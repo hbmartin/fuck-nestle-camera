@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */ 
+/* eslint-disable @typescript-eslint/no-unused-vars */
 
 let wasm;
 
@@ -801,7 +801,7 @@ async function __wbg_init(module_or_path) {
     console.warn('using deprecated parameters for the initialization function; pass a single object instead')
 
     if (typeof module_or_path === 'undefined') {
-        module_or_path = new URL('ocrs_bg.wasm', import.meta.url);
+        module_or_path = new URL('../../public/ocrs_bg.wasm', import.meta.url);
     }
     const imports = __wbg_get_imports();
 
