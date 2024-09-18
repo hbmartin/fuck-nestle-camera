@@ -6,6 +6,52 @@ import { type FuzzyOptions, Searcher } from "fast-fuzzy"
 import { RefreshCwIcon } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 
+const detectAndRecognizeFrame = (
+  canvas: HTMLCanvasElement,
+  imageData: ImageData,
+  searcher: Searcher<string, FuzzyOptions> | null,
+) => {
+  const ctx = canvas.getContext("2d")
+  const startTime = performance.now()
+  const data = OcrsModule.getInstance().detectAndRecognizeText(imageData)
+  const detectTime = performance.now()
+  console.log(`Detection took ${detectTime - startTime} ms.`)
+
+  if (data) {
+    // Clear previous boxes
+    ctx?.clearRect(0, 0, canvas.width, canvas.height)
+
+    // Draw bounding boxes
+    if (ctx) {
+      ctx.strokeStyle = "red"
+      ctx.lineWidth = 2
+      data.lines.forEach((word) => {
+        if (word.words.length > 0 && word.words[0].rect) {
+          const bbox = word.words[0].rect
+          ctx?.strokeRect(
+            bbox[0],
+            bbox[1],
+            bbox[2] - bbox[0],
+            bbox[3] - bbox[1],
+          )
+        }
+      })
+    }
+
+    for (const line of data.lines) {
+      const text = line.text
+      if (text.length > 4) {
+        const matches = searcher?.search(text)
+        if (matches && matches.length > 0) {
+          console.log(matches)
+        } else {
+          console.log(`matches: ${matches}`)
+        }
+      }
+    }
+  }
+}
+
 export function MobileCameraView() {
   const [isFrontCamera, setIsFrontCamera] = useState(true)
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -14,7 +60,6 @@ export function MobileCameraView() {
     document.createElement("canvas"),
   )
   const streamRef = useRef<MediaStream | null>(null)
-  const workerRef = useRef<OcrsModule | null>(null)
   const fuzzyRef = useRef<Searcher<string, FuzzyOptions> | null>(null)
 
   useEffect(() => {
@@ -41,14 +86,15 @@ export function MobileCameraView() {
     async function setupFuzzy() {
       const response = await fetch("/brands.json")
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        throw new Error(`HTTP error fetching brands: ${response.status}`)
       }
       const brands = (await response.json()).brands
+      console.log(brands)
       fuzzyRef.current = new Searcher(brands)
     }
 
     setupCamera()
-    workerRef.current = OcrsModule.getInstance()
+    const _initModule = OcrsModule.getInstance()
     setupFuzzy()
 
     return () => {
@@ -62,17 +108,16 @@ export function MobileCameraView() {
     setIsFrontCamera((prev) => !prev)
   }
 
-  const processFrame = async () => {
-    if (!(videoRef.current && canvasRef.current && workerRef.current)) {
+  const processFrame = () => {
+    if (!(videoRef.current && canvasRef.current)) {
       return
     }
 
     const video = videoRef.current
     const canvas = canvasRef.current
     const hiddenCtx = hiddenCanvasRef.current.getContext("2d")
-    const ctx = canvas.getContext("2d")
 
-    if (!(ctx && hiddenCtx)) {
+    if (!hiddenCtx) {
       return
     }
 
@@ -91,36 +136,7 @@ export function MobileCameraView() {
       canvas.width,
       canvas.height,
     )
-    const startTime = performance.now()
-    const data = workerRef.current.detectAndRecognizeText(imageData)
-    const detectTime = performance.now()
-    console.log(`Detection took ${detectTime - startTime} ms.`)
-
-    if (data) {
-      // Clear previous boxes
-      ctx.clearRect(0, 0, canvas.width, canvas.height)
-
-      // Draw bounding boxes
-      ctx.strokeStyle = "red"
-      ctx.lineWidth = 2
-      data.lines.forEach((word) => {
-        if (word.words.length > 0 && word.words[0].rect) {
-          const bbox = word.words[0].rect
-          ctx.strokeRect(bbox[0], bbox[1], bbox[2] - bbox[0], bbox[3] - bbox[1])
-        }
-      })
-      for (const line of data.lines) {
-        const text = line.text
-        if (text.length > 4) {
-          const matches = fuzzyRef.current?.search(text)
-          if (matches && matches.length > 0) {
-            console.log(matches)
-          } else {
-            console.log(`matches: ${matches}`)
-          }
-        }
-      }
-    }
+    detectAndRecognizeFrame(canvas, imageData, fuzzyRef.current)
   }
 
   useEffect(() => {

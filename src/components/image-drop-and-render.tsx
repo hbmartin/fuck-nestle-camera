@@ -5,71 +5,67 @@ import { Card, CardContent } from "@/components/ui/card"
 import { OcrsModule } from "@/ocrs/ocrs_module"
 import { useCallback, useRef, useState } from "react"
 
+const worker = OcrsModule.getInstance()
+
+const detectAndRecognizeCanvas = (
+  canvas: HTMLCanvasElement,
+  ctx: CanvasRenderingContext2D,
+) => {
+  const imageData: ImageData = ctx.getImageData(
+    0,
+    0,
+    canvas.width,
+    canvas.height,
+  )
+  const data = worker.detectAndRecognizeText(imageData)
+
+  if (data) {
+    // Draw bounding boxes
+    ctx.strokeStyle = "red"
+    ctx.lineWidth = 2
+    data.lines.forEach((word) => {
+      if (word.words.length > 0 && word.words[0].rect) {
+        const bbox = word.words[0].rect
+        ctx.strokeRect(bbox[0], bbox[1], bbox[2] - bbox[0], bbox[3] - bbox[1])
+      }
+    })
+  }
+}
+
 export default function ImageDropAndRender() {
   const [image, setImage] = useState<string | null>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [isDragging, setIsDragging] = useState(false)
-  const worker = OcrsModule.getInstance()
 
-  const onDrop = useCallback(
-    (e: React.DragEvent<HTMLDivElement>) => {
-      e.preventDefault()
-      setIsDragging(false)
+  const onDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    setIsDragging(false)
 
-      const file = e.dataTransfer.files[0]
-      if (file?.type.startsWith("image/")) {
-        const reader = new FileReader()
-        reader.onload = (event) => {
-          const img = new Image()
-          img.onload = () => {
-            const canvas = canvasRef.current
-            if (canvas) {
-              canvas.width = img.width
-              canvas.height = img.height
-              const ctx = canvas.getContext("2d")
-              ctx?.drawImage(img, 0, 0)
-              if (!ctx) {
-                return
-              }
-
-              console.log(`width: ${canvas.width}, height: ${canvas.height}`)
-              const imageData: ImageData = ctx.getImageData(
-                0,
-                0,
-                canvas.width,
-                canvas.height,
-              )
-              const data = worker.detectAndRecognizeText(imageData)
-              console.log(JSON.stringify(data))
-
-              console.log("starting recognize")
-
-              if (data) {
-                // Draw bounding boxes
-                ctx.strokeStyle = "red"
-                ctx.lineWidth = 2
-                data.lines.forEach((word) => {
-                  if (word.words.length > 0 && word.words[0].rect) {
-                    const bbox = word.words[0].rect
-                    ctx.strokeRect(
-                      bbox[0],
-                      bbox[1],
-                      bbox[2] - bbox[0],
-                      bbox[3] - bbox[1],
-                    )
-                  }
-                })
-              }
+    const file = e.dataTransfer.files[0]
+    if (file?.type.startsWith("image/")) {
+      const reader = new FileReader()
+      reader.onload = (event) => {
+        const img = new Image()
+        img.onload = () => {
+          const canvas = canvasRef.current
+          if (canvas) {
+            canvas.width = img.width
+            canvas.height = img.height
+            const ctx = canvas.getContext("2d")
+            if (!ctx) {
+              return
             }
+            ctx.drawImage(img, 0, 0)
+
+            detectAndRecognizeCanvas(canvas, ctx)
           }
-          img.src = event.target?.result as string
-          setImage(event.target?.result as string)
         }
-        reader.readAsDataURL(file)
+        img.src = event.target?.result as string
+        setImage(event.target?.result as string)
       }
-    },
-    [worker],
-  )
+      reader.readAsDataURL(file)
+    }
+  }, [])
 
   const onDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault()
