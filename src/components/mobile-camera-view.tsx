@@ -9,11 +9,12 @@ import { OcrsModule } from '@/ocrs/ocrs_module'
 
 export function MobileCameraView() {
   const [isFrontCamera, setIsFrontCamera] = useState(true)
-  const [isProcessing, setIsProcessing] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const hiddenCanvasRef = useRef<HTMLCanvasElement>(document.createElement('canvas'))
   const streamRef = useRef<MediaStream | null>(null)
   const workerRef = useRef<OcrsModule | null>(null)
+  const fuzzyRef = useRef<OcrsModule | null>(null)
 
   useEffect(() => {
     async function setupCamera() {
@@ -36,12 +37,9 @@ export function MobileCameraView() {
       }
     }
 
-    async function initTesseract() {
-      workerRef.current = OcrsModule.getInstance()
-    }
-
     setupCamera()
-    initTesseract()
+    workerRef.current = OcrsModule.getInstance()
+
 
     return () => {
       if (streamRef.current) {
@@ -56,62 +54,63 @@ export function MobileCameraView() {
 
   const processFrame = async () => {
     console.log("starting processing");
-    if (isProcessing || !videoRef.current || !canvasRef.current || !workerRef.current) return
-
-    setIsProcessing(true)
+    if (!videoRef.current || !canvasRef.current || !workerRef.current) return
 
     const video = videoRef.current
     const canvas = canvasRef.current
+    const hiddenCtx = hiddenCanvasRef.current.getContext('2d')
     const ctx = canvas.getContext('2d')
 
-    if (!ctx) return
+    if (!ctx || !hiddenCtx) {
+      return
+    }
 
     if (video.videoWidth > 1) {
       canvas.width = video.videoWidth
+      hiddenCanvasRef.current.width = video.videoWidth
     }
     if (video.videoHeight > 1) {
       canvas.height = video.videoHeight
+      hiddenCanvasRef.current.height = video.videoHeight
     }
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
-    console.log("did draw video to canvas")
-    const imageData: ImageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
-    const lines = workerRef.current.detectAndRecognizeText(imageData)
-    console.log(lines)
+    hiddenCtx.drawImage(video, 0, 0, canvas.width, canvas.height)
+    const imageData: ImageData = hiddenCtx.getImageData(0, 0, canvas.width, canvas.height)
+    const startTime = performance.now();
+    const data = workerRef.current.detectAndRecognizeText(imageData)
+    const detectTime = performance.now();
+    console.log('Detection took ' + (detectTime - startTime) + ' ms.');
+    console.log(JSON.stringify(data))
 
 
-    // console.log("starting recognize");
+    console.log("starting recognize");
 
-    // try {
-    //   const { data } = await workerRef.current.recognize(canvas).catch(error => console.error('Error in myFunction:', error));
-    //   console.log(data);
+    if (data) {
+      // Clear previous boxes
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-    //   // Clear previous boxes
-    //   ctx.clearRect(0, 0, canvas.width, canvas.height)
-    //   ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
-  
-    //   // Draw bounding boxes
-    //   ctx.strokeStyle = 'red'
-    //   ctx.lineWidth = 2
-    //   data.words.forEach(word => {
-    //     const { bbox } = word
-    //     ctx.strokeRect(bbox.x0, bbox.y0, bbox.x1 - bbox.x0, bbox.y1 - bbox.y0)
-    //   })
-    // } catch (error) {
-    //   console.log("ERROR")
-    //   console.log(error)
-    // }
+      // Draw bounding boxes
+      ctx.strokeStyle = 'red'
+      ctx.lineWidth = 2
+      data.lines.forEach(word => {
+        if (word.words.length > 0 && word.words[0].rect) {
+          const bbox = word.words[0].rect
+          ctx.strokeRect(bbox[0], bbox[1], bbox[2] - bbox[0], bbox[3] - bbox[1])
+        }
+      })
+    }
+    const drawTime = performance.now();
 
-    setIsProcessing(false)
+    console.log('Drawing took ' + (drawTime - detectTime) + ' ms.');
   }
 
   useEffect(() => {
-    const intervalId = setInterval(processFrame, 2000) // Process every 2 seconds
+    const intervalId = setInterval(processFrame, 500)
     return () => clearInterval(intervalId)
-  }, [isProcessing])
+  })
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
-      <div className="w-full max-w-md aspect-[9/16] relative overflow-hidden rounded-lg shadow-lg">
+      <div className="w-full relative overflow-hidden rounded-lg shadow-lg">
         <video
           ref={videoRef}
           autoPlay
