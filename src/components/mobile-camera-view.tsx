@@ -94,6 +94,7 @@ export function MobileCameraView() {
     }
 
     setupCamera()
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const _initModule = OcrsModule.getInstance()
     setupFuzzy()
 
