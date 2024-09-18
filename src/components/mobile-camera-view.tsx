@@ -1,18 +1,20 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */ 
+/* eslint-disable @typescript-eslint/no-unused-vars */
 
-'use client'
+"use client"
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { RefreshCwIcon } from "lucide-react"
-import { OcrsModule } from '@/ocrs/ocrs_module'
-import { FuzzyOptions, Searcher } from 'fast-fuzzy'
+import { OcrsModule } from "@/ocrs/ocrs_module"
+import { FuzzyOptions, Searcher } from "fast-fuzzy"
 
 export function MobileCameraView() {
   const [isFrontCamera, setIsFrontCamera] = useState(true)
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const hiddenCanvasRef = useRef<HTMLCanvasElement>(document.createElement('canvas'))
+  const hiddenCanvasRef = useRef<HTMLCanvasElement>(
+    document.createElement("canvas"),
+  )
   const streamRef = useRef<MediaStream | null>(null)
   const workerRef = useRef<OcrsModule | null>(null)
   const fuzzyRef = useRef<Searcher<string, FuzzyOptions> | null>(null)
@@ -21,11 +23,11 @@ export function MobileCameraView() {
     async function setupCamera() {
       try {
         if (streamRef.current) {
-          streamRef.current.getTracks().forEach(track => track.stop())
+          streamRef.current.getTracks().forEach((track) => track.stop())
         }
 
         const constraints = {
-          video: { facingMode: isFrontCamera ? 'user' : 'environment' }
+          video: { facingMode: isFrontCamera ? "user" : "environment" },
         }
 
         const stream = await navigator.mediaDevices.getUserMedia(constraints)
@@ -41,9 +43,9 @@ export function MobileCameraView() {
     async function setupFuzzy() {
       const response = await fetch("/brands.json")
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        throw new Error(`HTTP error! status: ${response.status}`)
       }
-      const brands = (await response.json())["brands"];
+      const brands = (await response.json())["brands"]
       fuzzyRef.current = new Searcher(brands)
     }
 
@@ -51,30 +53,31 @@ export function MobileCameraView() {
     workerRef.current = OcrsModule.getInstance()
     setupFuzzy()
 
-
     return () => {
       if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop())
+        streamRef.current.getTracks().forEach((track) => track.stop())
       }
     }
   }, [isFrontCamera])
 
   const toggleCamera = () => {
-    setIsFrontCamera(prev => !prev)
+    setIsFrontCamera((prev) => !prev)
   }
 
   const processFrame = async () => {
-    console.log("starting processing");
+    console.log("starting processing")
     if (!videoRef.current || !canvasRef.current || !workerRef.current) {
-      console.log(`videoRef: ${!videoRef.current}, canvasRef: ${!canvasRef.current}, workerRef: ${!workerRef.current}`)
+      console.log(
+        `videoRef: ${!videoRef.current}, canvasRef: ${!canvasRef.current}, workerRef: ${!workerRef.current}`,
+      )
       return
     }
 
     const fuzzy = fuzzyRef.current
     const video = videoRef.current
     const canvas = canvasRef.current
-    const hiddenCtx = hiddenCanvasRef.current.getContext('2d')
-    const ctx = canvas.getContext('2d')
+    const hiddenCtx = hiddenCanvasRef.current.getContext("2d")
+    const ctx = canvas.getContext("2d")
 
     if (!ctx || !hiddenCtx) {
       return
@@ -89,24 +92,28 @@ export function MobileCameraView() {
       hiddenCanvasRef.current.height = video.videoHeight
     }
     hiddenCtx.drawImage(video, 0, 0, canvas.width, canvas.height)
-    const imageData: ImageData = hiddenCtx.getImageData(0, 0, canvas.width, canvas.height)
-    const startTime = performance.now();
+    const imageData: ImageData = hiddenCtx.getImageData(
+      0,
+      0,
+      canvas.width,
+      canvas.height,
+    )
+    const startTime = performance.now()
     const data = workerRef.current.detectAndRecognizeText(imageData)
-    const detectTime = performance.now();
-    console.log('Detection took ' + (detectTime - startTime) + ' ms.');
+    const detectTime = performance.now()
+    console.log("Detection took " + (detectTime - startTime) + " ms.")
     console.log(JSON.stringify(data))
 
-
-    console.log("starting recognize");
+    console.log("starting recognize")
 
     if (data) {
       // Clear previous boxes
       ctx.clearRect(0, 0, canvas.width, canvas.height)
 
       // Draw bounding boxes
-      ctx.strokeStyle = 'red'
+      ctx.strokeStyle = "red"
       ctx.lineWidth = 2
-      data.lines.forEach(word => {
+      data.lines.forEach((word) => {
         if (word.words.length > 0 && word.words[0].rect) {
           const bbox = word.words[0].rect
           ctx.strokeRect(bbox[0], bbox[1], bbox[2] - bbox[0], bbox[3] - bbox[1])
@@ -155,7 +162,7 @@ export function MobileCameraView() {
         </div>
       </div>
       <p className="mt-4 text-center text-sm text-gray-600">
-        Currently using: {isFrontCamera ? 'Front' : 'Back'} camera
+        Currently using: {isFrontCamera ? "Front" : "Back"} camera
       </p>
     </div>
   )
