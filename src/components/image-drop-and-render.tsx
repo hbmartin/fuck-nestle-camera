@@ -57,7 +57,7 @@ export default function ImageDropAndRender() {
       }
       reader.readAsDataURL(file)
     }
-  }, [])
+  }, [worker])
 
   const onDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault()

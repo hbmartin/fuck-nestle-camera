@@ -1,8 +1,17 @@
+"use strict";
+
 import {
     OcrEngine,
     OcrEngineInit,
     default as initOcrLib,
   } from "./ocrs.js";
+
+  enum Status {
+    NotStartedIntitializing,
+    CurrentlyIntitializing,
+    Ready,
+    Running,
+  }
 
 export interface DetectAndRecognizeResult {
   lines: Line[]
@@ -30,7 +39,7 @@ async function fetchAsBinary(path: string): Promise<Uint8Array> {
 
 export class OcrsModule {
     private static instance: OcrsModule;
-    private static status: number = -1;
+    private static status = Status.NotStartedIntitializing;
     private static ocrEngine: OcrEngine | null = null;
 
     private constructor() {
@@ -38,30 +47,29 @@ export class OcrsModule {
     }
 
     private static async initEngine() {
-        if (OcrsModule.status > -1) {
+        if (OcrsModule.status > Status.NotStartedIntitializing) {
             return
         }
-        OcrsModule.status = 0
-        const wasmBinary = await fetchAsBinary("/ocrs_bg.wasm");
-        console.log("Loaded wasm")
-        console.log(wasmBinary.length)
-        initOcrLib(wasmBinary)
+        OcrsModule.status = Status.CurrentlyIntitializing
 
-        const [detectionModel, recognitionModel] = await Promise.all([
+        const [wasmBinary, detectionModel, recognitionModel] = await Promise.all([
+            fetchAsBinary("/ocrs_bg.wasm"),
             fetchAsBinary("/text-detection.rten"),
             fetchAsBinary("/text-recognition.rten"),
         ]);
-        console.log("Loaded detectionModel")
-        console.log(detectionModel.length)
-        console.log("Loaded recognitionModel")
-        console.log(recognitionModel.length)
+
+        console.log(`Loaded wasm ${wasmBinary.length}`)
+        const initOutput = await initOcrLib(wasmBinary)
+
+        console.log(`Loaded detectionModel ${detectionModel.length}`)
+        console.log(`Loaded recognitionModel ${recognitionModel.length}`)
     
         const ocrInit = new OcrEngineInit();
         ocrInit.setDetectionModel(detectionModel);
         ocrInit.setRecognitionModel(recognitionModel);
     
         OcrsModule.ocrEngine = new OcrEngine(ocrInit);
-        OcrsModule.status = 1
+        OcrsModule.status = Status.Ready
     }
 
     static getInstance(): OcrsModule {
@@ -73,22 +81,20 @@ export class OcrsModule {
 
     detectAndRecognizeText(image: ImageData): DetectAndRecognizeResult | null {
         if (!OcrsModule.ocrEngine) {
-            console.log("not yet init")
+            console.log("ocrEngine has not been initialized")
             return null
         }
-        if (OcrsModule.status == 2) {
-          console.log("Detection already running for previous video frame")
+        if (OcrsModule.status != Status.Ready) {
+          console.log(`Detection request already running (${OcrsModule.status})`)
           return null
         }
-        OcrsModule.status = 2
+        OcrsModule.status = Status.Running
         const ocrInput = OcrsModule.ocrEngine.loadImage(
             image.width,
             image.height,
             Uint8Array.from(image.data),
         );
         const textLines = OcrsModule.ocrEngine.getTextLines(ocrInput);
-        console.log("textLines")
-        console.log(textLines)
         const lines = textLines.map((line) => {
           const words = line.words().map((word) => {
             return {
@@ -103,7 +109,7 @@ export class OcrsModule {
           };
         });
 
-        OcrsModule.status = 1
+        OcrsModule.status = Status.Ready
 
         return {
           lines,
