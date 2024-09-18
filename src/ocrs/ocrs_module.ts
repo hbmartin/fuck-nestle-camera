@@ -6,6 +6,9 @@ import {
 
 async function fetchAsBinary(path: string): Promise<Uint8Array> {
     const response = await fetch(path)
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
     const data = await response.arrayBuffer()
     console.log(data)
     return new Uint8Array(data)
@@ -31,8 +34,8 @@ export class OcrsModule {
         initOcrLib(wasmBinary)
 
         const [detectionModel, recognitionModel] = await Promise.all([
-            fetchAsBinary("/text-detection-ssfbcj81.onnx"),
-            fetchAsBinary("/text-rec-checkpoint-s52qdbqt.onnx"),
+            fetchAsBinary("/text-detection.rten"),
+            fetchAsBinary("/text-recognition.rten"),
         ]);
         console.log("Loaded detectionModel")
         console.log(detectionModel.length)
@@ -57,14 +60,21 @@ export class OcrsModule {
     detectAndRecognizeText(image: ImageData) {
         if (!OcrsModule.ocrEngine) {
             console.log("not yet init")
-            return
+            return null
         }
+        if (OcrsModule.status == 2) {
+          console.log("Detection already running for previous video frame")
+          return null
+        }
+        OcrsModule.status = 2
         const ocrInput = OcrsModule.ocrEngine.loadImage(
             image.width,
             image.height,
             Uint8Array.from(image.data),
         );
         const textLines = OcrsModule.ocrEngine.getTextLines(ocrInput);
+        console.log("textLines")
+        console.log(textLines)
         const lines = textLines.map((line) => {
           const words = line.words().map((word) => {
             return {
@@ -78,6 +88,9 @@ export class OcrsModule {
             words,
           };
         });
+
+        OcrsModule.status = 1
+
         return {
           lines,
         };

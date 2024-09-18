@@ -6,6 +6,7 @@ import { useState, useRef, useEffect } from 'react'
 import { Button } from "@/components/ui/button"
 import { RefreshCwIcon } from "lucide-react"
 import { OcrsModule } from '@/ocrs/ocrs_module'
+import { FuzzyOptions, Searcher } from 'fast-fuzzy'
 
 export function MobileCameraView() {
   const [isFrontCamera, setIsFrontCamera] = useState(true)
@@ -14,7 +15,7 @@ export function MobileCameraView() {
   const hiddenCanvasRef = useRef<HTMLCanvasElement>(document.createElement('canvas'))
   const streamRef = useRef<MediaStream | null>(null)
   const workerRef = useRef<OcrsModule | null>(null)
-  const fuzzyRef = useRef<OcrsModule | null>(null)
+  const fuzzyRef = useRef<Searcher<string, FuzzyOptions> | null>(null)
 
   useEffect(() => {
     async function setupCamera() {
@@ -37,6 +38,15 @@ export function MobileCameraView() {
       }
     }
 
+    async function setupFuzzy() {
+      const response = await fetch("/brands.json")
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const brands = (await response.json())["brands"];
+      fuzzyRef.current = new Searcher(brands)
+    }
+
     setupCamera()
     workerRef.current = OcrsModule.getInstance()
 
@@ -54,8 +64,9 @@ export function MobileCameraView() {
 
   const processFrame = async () => {
     console.log("starting processing");
-    if (!videoRef.current || !canvasRef.current || !workerRef.current) return
+    if (!videoRef.current || !canvasRef.current || !workerRef.current || !fuzzyRef.current) return
 
+    const fuzzy = fuzzyRef.current
     const video = videoRef.current
     const canvas = canvasRef.current
     const hiddenCtx = hiddenCanvasRef.current.getContext('2d')
@@ -97,10 +108,16 @@ export function MobileCameraView() {
           ctx.strokeRect(bbox[0], bbox[1], bbox[2] - bbox[0], bbox[3] - bbox[1])
         }
       })
+      for (const line of data["lines"]) {
+        const text = line["text"]
+        if (text.length > 4) {
+          const matches = fuzzy.search(text)
+          if (matches.length > 0) {
+            console.log(matches)
+          }
+        }
+      }
     }
-    const drawTime = performance.now();
-
-    console.log('Drawing took ' + (drawTime - detectTime) + ' ms.');
   }
 
   useEffect(() => {
