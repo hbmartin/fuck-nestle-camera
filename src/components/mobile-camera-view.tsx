@@ -56,9 +56,7 @@ export function MobileCameraView() {
   const [isFrontCamera, setIsFrontCamera] = useState(true)
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const hiddenCanvasRef = useRef<HTMLCanvasElement>(
-    document.createElement("canvas"),
-  )
+  const hiddenCanvasRef = useRef<HTMLCanvasElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const fuzzyRef = useRef<Searcher<string, FuzzyOptions> | null>(null)
 
@@ -110,7 +108,7 @@ export function MobileCameraView() {
   }
 
   const processFrame = () => {
-    if (!(videoRef.current && canvasRef.current)) {
+    if (!(videoRef.current && canvasRef.current && hiddenCanvasRef.current)) {
       return
     }
 
@@ -148,6 +146,10 @@ export function MobileCameraView() {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
       <div className="w-full relative overflow-hidden rounded-lg shadow-lg">
+        <canvas
+          ref={hiddenCanvasRef}
+          className="absolute top-0 left-0 w-full h-full hidden"
+        />
         <video
           muted={true}
           ref={videoRef}
