@@ -1,3 +1,5 @@
+"use client"
+
 import { OcrEngine, OcrEngineInit, default as initOcrLib } from "./ocrs.js"
 
 enum Status {

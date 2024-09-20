@@ -2,6 +2,8 @@
 
 [![Code quality](https://github.com/hbmartin/fuck-nestle-camera/actions/workflows/pull_request.yml/badge.svg)](https://github.com/hbmartin/fuck-nestle-camera/actions/workflows/pull_request.yml)
 [![Checked with Biome](https://img.shields.io/badge/Checked_with-Biome-60a5fa?style=flat&logo=biome)](https://biomejs.dev)
+[![CodeFactor](https://www.codefactor.io/repository/github/hbmartin/fuck-nestle-camera/badge)](https://www.codefactor.io/repository/github/hbmartin/fuck-nestle-camera)
+
 
 ## Development
 
