@@ -36,6 +36,9 @@
       },
       "style": {
         "noDefaultExport": "off"
+      },
+      "correctness": {
+        "useImportExtensions": "off"
       }
     }
   },
