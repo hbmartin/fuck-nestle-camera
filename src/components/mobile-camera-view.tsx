@@ -30,22 +30,22 @@ const detectAndRecognizeFrame = async (
     for (const line of data.lines) {
       const text = line.text
       if (text.length > 4) {
+        for (const word of line.words) {
+          const bbox = word.rect
+          ctx?.strokeRect(
+            bbox[0],
+            bbox[1],
+            bbox[2] - bbox[0],
+            bbox[3] - bbox[1],
+          )
+        }
         const matches = searcher?.search(text)
         if (matches && matches.length > 0) {
           console.log(matches)
           textMatches[text] = matches
-          for (const word of line.words) {
-            const bbox = word.rect
-            ctx?.strokeRect(
-              bbox[0],
-              bbox[1],
-              bbox[2] - bbox[0],
-              bbox[3] - bbox[1],
-            )
-          }
-        } else {
-          console.log("No matches")
         }
+      } else {
+        console.log("No matches")
       }
     }
     return textMatches
