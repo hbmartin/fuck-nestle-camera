@@ -1,19 +1,18 @@
 "use client"
 
-import { Button } from "@/components/ui/button"
 import { OcrsModule } from "@/ocrs/ocrs_module"
 import { type FuzzyOptions, Searcher } from "fast-fuzzy"
-import { RefreshCwIcon } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
+import { Button } from "./ui/button"
 
-const detectAndRecognizeFrame = (
+const detectAndRecognizeFrame = async (
   canvas: HTMLCanvasElement,
   imageData: ImageData,
   searcher: Searcher<string, FuzzyOptions> | null,
-) => {
+): Promise<Record<string, string[]>> => {
   const ctx = canvas.getContext("2d")
   const startTime = performance.now()
-  const data = OcrsModule.getInstance().detectAndRecognizeText(imageData)
+  const data = await OcrsModule.getInstance().detectAndRecognizeText(imageData)
   const detectTime = performance.now()
   console.log(`Detection took ${detectTime - startTime} ms.`)
 
@@ -25,18 +24,8 @@ const detectAndRecognizeFrame = (
     if (ctx) {
       ctx.strokeStyle = "red"
       ctx.lineWidth = 2
-      data.lines.forEach((word) => {
-        if (word.words.length > 0 && word.words[0].rect) {
-          const bbox = word.words[0].rect
-          ctx?.strokeRect(
-            bbox[0],
-            bbox[1],
-            bbox[2] - bbox[0],
-            bbox[3] - bbox[1],
-          )
-        }
-      })
     }
+    const textMatches: Record<string, string[]> = {}
 
     for (const line of data.lines) {
       const text = line.text
@@ -44,16 +33,29 @@ const detectAndRecognizeFrame = (
         const matches = searcher?.search(text)
         if (matches && matches.length > 0) {
           console.log(matches)
+          textMatches[text] = matches
+          for (const word of line.words) {
+            const bbox = word.rect
+            ctx?.strokeRect(
+              bbox[0],
+              bbox[1],
+              bbox[2] - bbox[0],
+              bbox[3] - bbox[1],
+            )
+          }
         } else {
-          console.log(`matches: ${matches}`)
+          console.log("No matches")
         }
       }
     }
+    return textMatches
   }
+  return {}
 }
 
 export function MobileCameraView() {
-  const [isFrontCamera, setIsFrontCamera] = useState(true)
+  const [wordMatches, setWordMatches] = useState<Record<string, string[]>>({})
+  const [isDetectionActive, setIsDetectionActive] = useState(true)
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const hiddenCanvasRef = useRef<HTMLCanvasElement>(null)
@@ -68,7 +70,7 @@ export function MobileCameraView() {
         }
 
         const constraints = {
-          video: { facingMode: isFrontCamera ? "user" : "environment" },
+          video: { facingMode: "user" },
         }
 
         const stream = await navigator.mediaDevices.getUserMedia(constraints)
@@ -101,10 +103,10 @@ export function MobileCameraView() {
         streamRef.current.getTracks().forEach((track) => track.stop())
       }
     }
-  }, [isFrontCamera])
+  }, [])
 
-  const toggleCamera = () => {
-    setIsFrontCamera((prev) => !prev)
+  const toggleDetection = () => {
+    setIsDetectionActive((prev) => !prev)
   }
 
   const processFrame = () => {
@@ -135,7 +137,14 @@ export function MobileCameraView() {
       canvas.width,
       canvas.height,
     )
-    detectAndRecognizeFrame(canvas, imageData, fuzzyRef.current)
+
+    if (isDetectionActive) {
+      detectAndRecognizeFrame(canvas, imageData, fuzzyRef.current).then(
+        (detectedWordMatches) => {
+          setWordMatches(detectedWordMatches)
+        },
+      )
+    }
   }
 
   useEffect(() => {
@@ -157,23 +166,34 @@ export function MobileCameraView() {
           playsInline={true}
           className="w-full h-full object-cover"
         />
+        <div className="absolute top-4 left-0 right-0 flex justify-center">
+          <ul className="list-disc ml-4">
+            {Object.keys(wordMatches).map((text) => (
+              <li
+                key={text}
+                className="text-sm text-gray-800"
+              >
+                <strong>{text}</strong>
+                {wordMatches[text].map((match) => (
+                  <li key={match}>{match}</li>
+                ))}
+              </li>
+            ))}
+          </ul>
+        </div>
         <canvas
           ref={canvasRef}
           className="absolute top-0 left-0 w-full h-full"
         />
         <div className="absolute bottom-4 left-0 right-0 flex justify-center">
           <Button
-            onClick={toggleCamera}
+            onClick={toggleDetection}
             className="bg-white text-black hover:bg-gray-200 transition-colors"
           >
-            <RefreshCwIcon className="mr-2 h-4 w-4" />
-            Switch Camera
+            Start / Pause
           </Button>
         </div>
       </div>
-      <p className="mt-4 text-center text-sm text-gray-600">
-        Currently using: {isFrontCamera ? "Front" : "Back"} camera
-      </p>
     </div>
   )
 }

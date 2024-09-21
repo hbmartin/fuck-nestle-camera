@@ -75,7 +75,9 @@ export class OcrsModule {
     return OcrsModule.instance
   }
 
-  detectAndRecognizeText(image: ImageData): DetectAndRecognizeResult | null {
+  async detectAndRecognizeText(
+    image: ImageData,
+  ): Promise<DetectAndRecognizeResult | null> {
     if (!OcrsModule.ocrEngine) {
       console.log("ocrEngine has not been initialized")
       return null
