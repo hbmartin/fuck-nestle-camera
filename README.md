@@ -12,12 +12,11 @@ Clone and run the development server:
 ```bash
 git clone git@github.com:hbmartin/fuck-nestle-camera.git
 cd fuck-nestle-camera
-npm install
-npm run dev
+pnpm install
+pnpm dev
 
 # Lint checks
-npm run lint
-npx @biomejs/biome check --error-on-warnings
+pnpm lint
 ```
 
 ## Deploy on Vercel

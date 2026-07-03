@@ -4,9 +4,9 @@
  * for motion blur before being handed to the engine.
  */
 import {
+  default as initOcrLib,
   OcrEngine,
   OcrEngineInit,
-  default as initOcrLib,
 } from "../ocrs/ocrs.js"
 import type { DetectRequest, OcrLine, WorkerResponse } from "./protocol"
 

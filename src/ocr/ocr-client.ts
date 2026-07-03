@@ -46,6 +46,9 @@ export class OcrClient {
       }
     })
     this.worker.onerror = (event) => {
+      if (this.disposed) {
+        return
+      }
       this.failWorker(new Error(event.message || "OCR worker failed"))
     }
   }

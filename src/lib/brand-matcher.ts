@@ -1,5 +1,5 @@
-import type { OcrLine, OcrWord } from "@/ocr/protocol"
 import { Searcher } from "fast-fuzzy"
+import type { OcrLine, OcrWord } from "@/ocr/protocol"
 
 /**
  * Minimum fuzzy similarity for a match to count. The ocrs bindings do not
