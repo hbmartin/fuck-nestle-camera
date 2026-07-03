@@ -32,6 +32,11 @@ export class TemporalVoter {
     }
     this.promoteWinners(matches, now)
     this.evictExpired(now)
+    for (const brand of this.lastMatch.keys()) {
+      if (!this.confirmedUntil.has(brand)) {
+        this.lastMatch.delete(brand)
+      }
+    }
     return Array.from(this.confirmedUntil.keys())
       .map((brand) => this.lastMatch.get(brand))
       .filter((match): match is ConfirmedBrand => match !== undefined)

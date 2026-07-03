@@ -1,5 +1,5 @@
 {
-  "$schema": "https://biomejs.dev/schemas/1.9.1/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.5.2/schema.json",
   "vcs": {
     "enabled": true,
     "clientKind": "git",
@@ -8,10 +8,12 @@
   },
   "files": {
     "ignoreUnknown": false,
-    "ignore": [
-      "src/ocrs/ocrs.js",
-      "src/ocrs/ocrs_bg.wasm.d.ts",
-      "src/ocrs/ocrs.d.ts"
+    "includes": [
+      "**",
+      "!**/reviews_triage",
+      "!**/src/ocrs/ocrs.js",
+      "!**/src/ocrs/ocrs_bg.wasm.d.ts",
+      "!**/src/ocrs/ocrs.d.ts"
     ]
   },
   "formatter": {
@@ -19,16 +21,12 @@
     "indentStyle": "space",
     "attributePosition": "multiline"
   },
-  "organizeImports": {
-    "enabled": true
-  },
+  "assist": { "actions": { "source": { "organizeImports": "on" } } },
   "linter": {
     "enabled": true,
     "rules": {
-      "all": true,
       "suspicious": {
         "noReactSpecificProps": "off",
-        "noConsoleLog": "off",
         "noConsole": "off"
       },
       "complexity": {
@@ -47,9 +45,14 @@
       "semicolons": "asNeeded"
     }
   },
+  "css": {
+    "parser": {
+      "tailwindDirectives": true
+    }
+  },
   "overrides": [
     {
-      "include": ["tailwind.config.ts"],
+      "includes": ["**/tailwind.config.ts"],
       "linter": {
         "rules": {
           "style": {
@@ -59,13 +62,14 @@
       }
     },
     {
-      "include": ["src/components/**/*.tsx", "src/app/layout.tsx"],
+      "includes": ["**/src/components/**/*.tsx", "**/src/app/layout.tsx"],
       "linter": {
         "rules": {
           "correctness": {
             "noUndeclaredVariables": "off"
           },
-          "style": {
+          "style": {},
+          "performance": {
             "noNamespaceImport": "off"
           }
         }

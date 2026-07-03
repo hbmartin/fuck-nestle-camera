@@ -1,10 +1,10 @@
 "use client"
 
+import { SwitchCamera } from "lucide-react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { BrandMatcher, type Rect } from "@/lib/brand-matcher"
 import { type ConfirmedBrand, TemporalVoter } from "@/lib/temporal-voter"
 import { OcrClient } from "@/ocr/ocr-client"
-import { SwitchCamera } from "lucide-react"
-import { useCallback, useEffect, useRef, useState } from "react"
 import { Button } from "./ui/button"
 
 /**
@@ -375,7 +375,14 @@ export function MobileCameraView() {
     const now = Date.now()
     const confirmed = voterRef.current.addFrame(matches, now)
     setConfirmedBrands(confirmed)
-    drawOverlay(overlay, video.videoWidth, video.videoHeight, roi, confirmed, now)
+    drawOverlay(
+      overlay,
+      video.videoWidth,
+      video.videoHeight,
+      roi,
+      confirmed,
+      now,
+    )
     return true
   }, [])
 
@@ -411,7 +418,6 @@ export function MobileCameraView() {
     <div className="flex w-full max-w-md flex-col items-center gap-4">
       <div className="relative aspect-[3/4] w-full overflow-hidden rounded-lg bg-black shadow-lg">
         <video
-          aria-hidden="true"
           muted={true}
           ref={videoRef}
           autoPlay={true}

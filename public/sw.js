@@ -30,7 +30,7 @@ async function cacheFirst(request) {
   return response
 }
 
-async function staleWhileRevalidate(request) {
+async function staleWhileRevalidate(request, event) {
   const cache = await caches.open(CACHE_NAME)
   const cached = await cache.match(request)
   const networkResponse = fetch(request)
@@ -42,9 +42,16 @@ async function staleWhileRevalidate(request) {
       if (!cached) {
         throw error
       }
-      console.error("Failed to revalidate cached OCR asset:", request.url, error)
+      console.error(
+        "Failed to revalidate cached OCR asset:",
+        request.url,
+        error,
+      )
       return cached
     })
+  if (cached && event) {
+    event.waitUntil(networkResponse)
+  }
   return cached || networkResponse
 }
 
@@ -64,9 +71,7 @@ self.addEventListener("install", (event) => {
   // visit. The page is fetching these same URLs concurrently, so these
   // requests are typically served from the HTTP cache.
   event.waitUntil(
-    caches
-      .open(CACHE_NAME)
-      .then((cache) => cache.addAll(PRECACHE_PATHS)),
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE_PATHS)),
   )
 })
 
@@ -76,7 +81,9 @@ self.addEventListener("activate", (event) => {
       const names = await caches.keys()
       await Promise.all(
         names
-          .filter((name) => name.startsWith(CACHE_PREFIX) && name !== CACHE_NAME)
+          .filter(
+            (name) => name.startsWith(CACHE_PREFIX) && name !== CACHE_NAME,
+          )
           .map((name) => caches.delete(name)),
       )
       await self.clients.claim()
@@ -92,7 +99,7 @@ self.addEventListener("fetch", (event) => {
   if (isCacheableAsset(url)) {
     event.respondWith(
       url.pathname === "/brands.json"
-        ? staleWhileRevalidate(event.request)
+        ? staleWhileRevalidate(event.request, event)
         : cacheFirst(event.request),
     )
   }
