@@ -68,20 +68,26 @@ export class BrandMatcher {
     { returnMatchData: true; threshold: number }
   >
   private readonly exactBrands = new Map<string, string>()
+  private readonly fuzzyBrands = new Map<string, string>()
+  private readonly maxBrandWords: number
 
   constructor(brands: string[]) {
     const fuzzyBrands: string[] = []
+    let maxBrandWords = 1
     for (const brand of brands) {
       const normalized = normalizeText(brand)
       if (normalized.length === 0) {
         continue
       }
+      maxBrandWords = Math.max(maxBrandWords, normalized.split(" ").length)
       if (normalized.length <= SHORT_BRAND_MAX_LENGTH) {
         this.exactBrands.set(normalized, brand)
       } else {
-        fuzzyBrands.push(brand)
+        fuzzyBrands.push(normalized)
+        this.fuzzyBrands.set(normalized, brand)
       }
     }
+    this.maxBrandWords = Math.min(maxBrandWords, MAX_WINDOW_WORDS)
     this.searcher = new Searcher(fuzzyBrands, {
       returnMatchData: true,
       threshold: FUZZY_THRESHOLD,
@@ -102,9 +108,9 @@ export class BrandMatcher {
     if (exact) {
       this.record(results, { brand: exact, score: 1, sourceText: text, rect })
     }
-    for (const match of this.searcher.search(text)) {
+    for (const match of this.searcher.search(normalized)) {
       this.record(results, {
-        brand: match.item,
+        brand: this.fuzzyBrands.get(match.item) ?? match.item,
         score: match.score,
         sourceText: text,
         rect,
@@ -130,7 +136,7 @@ export class BrandMatcher {
       const plausibleWords = line.words.filter((word) =>
         isPlausibleWord(word.text),
       )
-      for (let size = 1; size <= MAX_WINDOW_WORDS; size++) {
+      for (let size = 1; size <= this.maxBrandWords; size++) {
         for (let start = 0; start + size <= plausibleWords.length; start++) {
           const window = plausibleWords.slice(start, start + size)
           this.matchText(

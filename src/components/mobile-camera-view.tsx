@@ -23,6 +23,8 @@ const TARGET_ROI_WIDTH = 640
 const FRAME_PACING_MS = 100
 /** Poll interval while detection is paused or the pipeline is not ready. */
 const IDLE_POLL_MS = 250
+/** Maximum age for a match box to stay spatially attached to the camera feed. */
+const RECENT_MATCH_MS = 300
 
 type CameraStatus = "starting" | "active" | "denied" | "unavailable" | "error"
 type OcrStatus = "loading" | "ready" | "error"
@@ -132,6 +134,7 @@ function drawOverlay(
   videoHeight: number,
   roi: Roi,
   matches: readonly ConfirmedBrand[],
+  now: number,
 ): void {
   if (canvas.width !== videoWidth) {
     canvas.width = videoWidth
@@ -154,7 +157,9 @@ function drawOverlay(
   const fontSize = Math.max(16, Math.round(videoWidth / 40))
   ctx.font = `bold ${fontSize}px sans-serif`
   for (const match of matches) {
-    drawMatchLabel(ctx, match, fontSize)
+    if (now - match.lastSeenAt <= RECENT_MATCH_MS) {
+      drawMatchLabel(ctx, match, fontSize)
+    }
   }
 }
 
@@ -203,6 +208,7 @@ export function MobileCameraView() {
   const matcherRef = useRef<BrandMatcher | null>(null)
   const voterRef = useRef(new TemporalVoter())
   const detectionActiveRef = useRef(true)
+  const cameraRequestRef = useRef(0)
 
   useEffect(() => {
     if ("serviceWorker" in navigator) {
@@ -213,7 +219,17 @@ export function MobileCameraView() {
   }, [])
 
   useEffect(() => {
-    const client = new OcrClient()
+    let cancelled = false
+    let client: OcrClient
+    try {
+      client = new OcrClient()
+    } catch (error) {
+      console.error("OCR initialization failed:", error)
+      setOcrStatus("error")
+      return () => {
+        cancelled = true
+      }
+    }
     ocrClientRef.current = client
 
     const loadBrands = async () => {
@@ -222,32 +238,50 @@ export function MobileCameraView() {
         throw new Error(`HTTP error fetching brands: ${response.status}`)
       }
       const { brands } = (await response.json()) as { brands: string[] }
-      matcherRef.current = new BrandMatcher(brands)
+      if (!cancelled) {
+        matcherRef.current = new BrandMatcher(brands)
+      }
     }
 
     Promise.all([client.readyPromise, loadBrands()])
-      .then(() => setOcrStatus("ready"))
+      .then(() => {
+        if (!cancelled) {
+          setOcrStatus("ready")
+        }
+      })
       .catch((error) => {
-        console.error("OCR initialization failed:", error)
-        setOcrStatus("error")
+        if (!cancelled) {
+          console.error("OCR initialization failed:", error)
+          setOcrStatus("error")
+        }
       })
 
     return () => {
+      cancelled = true
       ocrClientRef.current = null
+      matcherRef.current = null
       client.dispose()
     }
   }, [])
 
   const stopStream = useCallback(() => {
+    cameraRequestRef.current += 1
     for (const track of streamRef.current?.getTracks() ?? []) {
       track.stop()
     }
     streamRef.current = null
+    if (videoRef.current) {
+      videoRef.current.srcObject = null
+    }
   }, [])
 
   const startCamera = useCallback(async () => {
     stopStream()
+    const requestId = ++cameraRequestRef.current
     setCameraStatus("starting")
+    if (document.hidden) {
+      return
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
@@ -256,14 +290,22 @@ export function MobileCameraView() {
           height: { ideal: 720 },
         },
       })
+      if (requestId !== cameraRequestRef.current || document.hidden) {
+        for (const track of stream.getTracks()) {
+          track.stop()
+        }
+        return
+      }
       streamRef.current = stream
       if (videoRef.current) {
         videoRef.current.srcObject = stream
       }
       setCameraStatus("active")
     } catch (error) {
-      console.error("Error accessing the camera:", error)
-      setCameraStatus(statusFromCameraError(error))
+      if (requestId === cameraRequestRef.current && !document.hidden) {
+        console.error("Error accessing the camera:", error)
+        setCameraStatus(statusFromCameraError(error))
+      }
     }
   }, [facingMode, stopStream])
 
@@ -330,9 +372,10 @@ export function MobileCameraView() {
       ...match,
       rect: mapRectToVideo(match.rect, roi),
     }))
-    const confirmed = voterRef.current.addFrame(matches, Date.now())
+    const now = Date.now()
+    const confirmed = voterRef.current.addFrame(matches, now)
     setConfirmedBrands(confirmed)
-    drawOverlay(overlay, video.videoWidth, video.videoHeight, roi, confirmed)
+    drawOverlay(overlay, video.videoWidth, video.videoHeight, roi, confirmed, now)
     return true
   }, [])
 
@@ -368,6 +411,7 @@ export function MobileCameraView() {
     <div className="flex w-full max-w-md flex-col items-center gap-4">
       <div className="relative aspect-[3/4] w-full overflow-hidden rounded-lg bg-black shadow-lg">
         <video
+          aria-hidden="true"
           muted={true}
           ref={videoRef}
           autoPlay={true}

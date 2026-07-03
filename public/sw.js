@@ -1,7 +1,8 @@
 // Service worker that caches the large OCR assets (WASM binary, .rten
 // models, brand list) so repeat visits load instantly and the app keeps
 // working on flaky in-store connections.
-const CACHE_NAME = "fnc-ocr-assets-v1"
+const CACHE_PREFIX = "fnc-ocr-assets-"
+const CACHE_NAME = `${CACHE_PREFIX}v2`
 const PRECACHE_PATHS = [
   "/ocrs_bg.wasm",
   "/text-detection.rten",
@@ -25,10 +26,36 @@ async function cacheFirst(request) {
     return cached
   }
   const response = await fetch(request)
-  if (response.ok) {
-    await cache.put(request, response.clone())
-  }
+  await cacheResponse(cache, request, response)
   return response
+}
+
+async function staleWhileRevalidate(request) {
+  const cache = await caches.open(CACHE_NAME)
+  const cached = await cache.match(request)
+  const networkResponse = fetch(request)
+    .then(async (response) => {
+      await cacheResponse(cache, request, response)
+      return response
+    })
+    .catch((error) => {
+      if (!cached) {
+        throw error
+      }
+      console.error("Failed to revalidate cached OCR asset:", request.url, error)
+      return cached
+    })
+  return cached || networkResponse
+}
+
+async function cacheResponse(cache, request, response) {
+  if (response.ok) {
+    try {
+      await cache.put(request, response.clone())
+    } catch (error) {
+      console.error("Failed to cache OCR asset:", request.url, error)
+    }
+  }
 }
 
 self.addEventListener("install", (event) => {
@@ -39,10 +66,7 @@ self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
       .open(CACHE_NAME)
-      .then((cache) => cache.addAll(PRECACHE_PATHS))
-      .catch((error) => {
-        console.error("Precaching OCR assets failed:", error)
-      }),
+      .then((cache) => cache.addAll(PRECACHE_PATHS)),
   )
 })
 
@@ -52,7 +76,7 @@ self.addEventListener("activate", (event) => {
       const names = await caches.keys()
       await Promise.all(
         names
-          .filter((name) => name !== CACHE_NAME)
+          .filter((name) => name.startsWith(CACHE_PREFIX) && name !== CACHE_NAME)
           .map((name) => caches.delete(name)),
       )
       await self.clients.claim()
@@ -66,6 +90,10 @@ self.addEventListener("fetch", (event) => {
   }
   const url = new URL(event.request.url)
   if (isCacheableAsset(url)) {
-    event.respondWith(cacheFirst(event.request))
+    event.respondWith(
+      url.pathname === "/brands.json"
+        ? staleWhileRevalidate(event.request)
+        : cacheFirst(event.request),
+    )
   }
 })

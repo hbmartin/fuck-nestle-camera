@@ -30,7 +30,7 @@ export class TemporalVoter {
     for (const match of matches) {
       this.lastMatch.set(match.brand, { ...match, lastSeenAt: now })
     }
-    this.promoteWinners(now)
+    this.promoteWinners(matches, now)
     this.evictExpired(now)
     return Array.from(this.confirmedUntil.keys())
       .map((brand) => this.lastMatch.get(brand))
@@ -44,7 +44,8 @@ export class TemporalVoter {
     this.confirmedUntil.clear()
   }
 
-  private promoteWinners(now: number): void {
+  private promoteWinners(matches: BrandMatch[], now: number): void {
+    const currentFrame = new Set(matches.map((match) => match.brand))
     const hits = new Map<string, number>()
     for (const frame of this.frames) {
       for (const brand of frame) {
@@ -52,7 +53,7 @@ export class TemporalVoter {
       }
     }
     for (const [brand, count] of hits) {
-      if (count >= VOTE_MIN_HITS) {
+      if (count >= VOTE_MIN_HITS && currentFrame.has(brand)) {
         this.confirmedUntil.set(brand, now + DISPLAY_TTL_MS)
       }
     }
