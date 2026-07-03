@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "allowJs": false,
+    "incremental": false,
+    "lib": ["webworker", "esnext"],
+    "types": []
+  },
+  "include": [
+    "src/ocr/ocr-worker.ts",
+    "src/ocr/protocol.ts",
+    "src/ocrs/ocrs.d.ts"
+  ],
+  "exclude": []
+}

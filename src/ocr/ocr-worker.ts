@@ -10,6 +10,11 @@ import {
 } from "../ocrs/ocrs.js"
 import type { DetectRequest, OcrLine, WorkerResponse } from "./protocol"
 
+const workerSelf = self as unknown as {
+  onmessage: ((event: MessageEvent<DetectRequest>) => Promise<void>) | null
+  postMessage(message: WorkerResponse): void
+}
+
 /**
  * Frames whose variance-of-Laplacian falls below this are considered too
  * blurry (camera in motion / hunting focus) to be worth an inference pass.
@@ -111,13 +116,17 @@ function stretchContrast(gray: Uint8Array): void {
   let cumulative = 0
   let low = 0
   let high = MAX_LUMA
+  let lowFound = false
+  let highFound = false
   for (let value = 0; value <= MAX_LUMA; value++) {
     cumulative += histogram[value]
-    if (cumulative <= lowTarget) {
+    if (!lowFound && cumulative >= lowTarget) {
       low = value
+      lowFound = true
     }
-    if (cumulative < highTarget) {
+    if (!highFound && cumulative >= highTarget) {
       high = value
+      highFound = true
     }
   }
   if (high <= low) {
@@ -149,21 +158,42 @@ function recognizeLines(
 ): OcrLine[] {
   const image = engine.loadImage(width, height, rgb)
   try {
-    return engine.getTextLines(image).map((line) => ({
-      text: line.text(),
-      words: line.words().map((word) => {
-        const rect = word.rotatedRect().boundingRect()
-        return {
-          text: word.text(),
-          rect: [rect[0], rect[1], rect[2], rect[3]] as [
-            number,
-            number,
-            number,
-            number,
-          ],
+    const lines = engine.getTextLines(image)
+    try {
+      return lines.map((line) => {
+        const words = line.words()
+        try {
+          return {
+            text: line.text(),
+            words: words.map((word) => {
+              const rotatedRect = word.rotatedRect()
+              try {
+                const rect = rotatedRect.boundingRect()
+                return {
+                  text: word.text(),
+                  rect: [rect[0], rect[1], rect[2], rect[3]] as [
+                    number,
+                    number,
+                    number,
+                    number,
+                  ],
+                }
+              } finally {
+                rotatedRect.free()
+              }
+            }),
+          }
+        } finally {
+          for (const word of words) {
+            word.free()
+          }
         }
-      }),
-    }))
+      })
+    } finally {
+      for (const line of lines) {
+        line.free()
+      }
+    }
   } finally {
     image.free()
   }
@@ -192,12 +222,12 @@ function handleDetect(request: DetectRequest): WorkerResponse {
 
 const initPromise = initEngine()
 
-self.onmessage = async (event: MessageEvent<DetectRequest>) => {
+workerSelf.onmessage = async (event: MessageEvent<DetectRequest>) => {
   const request = event.data
   try {
     await initPromise
   } catch (error) {
-    self.postMessage({
+    workerSelf.postMessage({
       type: "detect-error",
       id: request.id,
       message: `OCR init failed: ${String(error)}`,
@@ -205,9 +235,9 @@ self.onmessage = async (event: MessageEvent<DetectRequest>) => {
     return
   }
   try {
-    self.postMessage(handleDetect(request))
+    workerSelf.postMessage(handleDetect(request))
   } catch (error) {
-    self.postMessage({
+    workerSelf.postMessage({
       type: "detect-error",
       id: request.id,
       message: String(error),
@@ -216,9 +246,11 @@ self.onmessage = async (event: MessageEvent<DetectRequest>) => {
 }
 
 initPromise
-  .then(() => self.postMessage({ type: "ready" } satisfies WorkerResponse))
+  .then(() =>
+    workerSelf.postMessage({ type: "ready" } satisfies WorkerResponse),
+  )
   .catch((error) =>
-    self.postMessage({
+    workerSelf.postMessage({
       type: "init-error",
       message: String(error),
     } satisfies WorkerResponse),
