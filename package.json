@@ -2,12 +2,9 @@
   "name": "fuck-nestle-camera",
   "version": "0.1.0",
   "private": true,
-  "packageManager": "pnpm@11.9.0",
+  "packageManager": "pnpm@9.15.9",
   "engines": {
-    "node": ">=24"
-  },
-  "resolutions": {
-    "@types/node": "^24"
+    "node": "24.x"
   },
   "scripts": {
     "dev": "next dev",

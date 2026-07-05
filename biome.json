@@ -52,16 +52,6 @@
   },
   "overrides": [
     {
-      "includes": ["**/tailwind.config.ts"],
-      "linter": {
-        "rules": {
-          "style": {
-            "useNamingConvention": "off"
-          }
-        }
-      }
-    },
-    {
       "includes": ["**/src/components/**/*.tsx", "**/src/app/layout.tsx"],
       "linter": {
         "rules": {
